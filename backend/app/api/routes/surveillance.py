@@ -191,8 +191,10 @@ async def analyze_memory(req: SurveillanceRequest):
         
         # Save to memory instead of /tmp
         await save_surveillance_report(req.location, report)
-    except Exception:
-        report = {"raw_output": raw, "parse_error": "Agent did not return valid JSON or memory save failed."}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        report = {"raw_output": raw, "parse_error": f"Agent did not return valid JSON or memory save failed. Error: {str(e)}"}
 
     return {
         "location": geo,

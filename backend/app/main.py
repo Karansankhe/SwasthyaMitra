@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import chat, surveillance, distribution
+from app.api.routes import chat, surveillance, distribution, education, inventory, alerts
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -24,6 +24,9 @@ app.add_middleware(
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(surveillance.router, prefix="/api/v1/surveillance")
 app.include_router(distribution.router, prefix="/api/v1/distribution")
+app.include_router(education.router, prefix="/api/v1/education")
+app.include_router(inventory.router, prefix="/api/v1/inventory")
+app.include_router(alerts.router, prefix="/api/v1/alerts")
 
 @app.get("/")
 def read_root():

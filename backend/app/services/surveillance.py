@@ -7,7 +7,6 @@ from app.core.config import get_settings
 from agno.agent import Agent
 from agno.models.google import Gemini
 from agno.team.team import Team
-from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.reasoning import ReasoningTools
 from agno.tools.tavily import TavilyTools
 
@@ -122,7 +121,7 @@ def build_team(location: str, geo: dict, time_horizon: str = "long", memory_cont
         name="Multi-Source Signal Collector",
         role="Monitor and fuse environmental, disease, and outbreak signals for the target location.",
         model=gemini,
-        tools=[DuckDuckGoTools(), TavilyTools(api_key=settings.TAVILY_API_KEY)],
+        tools=[TavilyTools(api_key=settings.TAVILY_API_KEY)],
         instructions=[
             f"Target location: {city}, {country}  (lat={lat}, lon={lon})",
             "",
@@ -168,7 +167,7 @@ def build_team(location: str, geo: dict, time_horizon: str = "long", memory_cont
         name="Festival Surge Anticipator",
         role="Forecast healthcare demand surges from upcoming festivals and mass gatherings near the target location.",
         model=gemini,
-        tools=[TavilyTools(api_key=settings.TAVILY_API_KEY), DuckDuckGoTools()],
+        tools=[TavilyTools(api_key=settings.TAVILY_API_KEY)],
         instructions=festival_instructions,
         add_datetime_to_context=True,
     )
@@ -177,7 +176,7 @@ def build_team(location: str, geo: dict, time_horizon: str = "long", memory_cont
         name="Pollution-Triggered Health Risk Agent",
         role="Analyze AQI–respiratory illness causality and trigger early planning protocols.",
         model=gemini,
-        tools=[DuckDuckGoTools(), TavilyTools(api_key=settings.TAVILY_API_KEY)],
+        tools=[TavilyTools(api_key=settings.TAVILY_API_KEY)],
         instructions=[
             f"Target location: {city}, {country}  (lat={lat}, lon={lon})",
             "",

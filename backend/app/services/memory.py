@@ -1,5 +1,9 @@
 import os
 import json
+
+# Ensure Cognee backend auth is disabled before import
+os.environ["ENABLE_BACKEND_ACCESS_CONTROL"] = "false"
+
 import cognee
 from app.core.config import get_settings
 
@@ -25,6 +29,8 @@ def init_cognee_env():
         os.environ["EMBEDDING_MODEL"] = settings.EMBEDDING_MODEL
     if settings.COGNEE_SKIP_CONNECTION_TEST:
         os.environ["COGNEE_SKIP_CONNECTION_TEST"] = settings.COGNEE_SKIP_CONNECTION_TEST
+        
+    os.environ["ENABLE_BACKEND_ACCESS_CONTROL"] = "false"
 
 async def save_surveillance_report(location: str, report: dict):
     """Save the surveillance report to the Cognee memory graph."""

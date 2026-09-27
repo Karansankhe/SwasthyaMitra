@@ -128,3 +128,18 @@ async def create_distribution_plan_memory(req: DistributionPlanRequest):
         }
     )
 
+from app.models.distribution import ReallocateRequest, ReallocateResponse
+import uuid
+
+@router.post("/reallocate", response_model=ReallocateResponse)
+async def reallocate_resources(req: ReallocateRequest):
+    """
+    Confirm and trigger automated cross-district resource redistribution to balance supplies during emergencies.
+    """
+    # Mock behavior for reallocation logic
+    transaction_id = f"txn_{uuid.uuid4().hex[:8]}"
+    return ReallocateResponse(
+        status="success",
+        transaction_id=transaction_id,
+        message=f"Successfully initiated reallocation of {req.quantity} {req.item_id} from {req.source_phc_id} to {req.target_phc_id}."
+    )
