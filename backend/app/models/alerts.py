@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 
 class AlertTriggerRequest(BaseModel):
     region: str
-    threshold_level: str
+    threshold_level: str = "Medium"
 
 class AlertTriggerResponse(BaseModel):
     status: str

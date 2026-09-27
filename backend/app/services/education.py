@@ -1,43 +1,53 @@
 import json
 from typing import List
 from app.models.education import EducationModule, SimulationQuestion
-import google.generativeai as genai
 from app.core.config import get_settings
+from agno.agent import Agent
+from agno.models.google import Gemini
 
 settings = get_settings()
-genai.configure(api_key=settings.GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-pro")
 
 def generate_education_modules(query: str, user_role: str) -> List[EducationModule]:
-    prompt = f"""
-    You are an AI for a federated health platform in India.
-    Generate an educational module for a {user_role} based on the following situation or topic: "{query}".
-    Include 2 interactive simulation questions to test their knowledge.
+    gemini = Gemini(id="gemini-3.1-flash-lite", api_key=settings.GEMINI_API_KEY)
     
-    Output strictly valid JSON matching this schema:
-    [
-      {{
-        "module_id": "string",
-        "title": "string",
-        "description": "string",
-        "target_audience": "string",
-        "questions": [
-          {{
-            "id": "string",
-            "question_text": "string",
-            "options": ["string"],
-            "correct_option_index": 0,
-            "explanation": "string"
-          }}
-        ]
-      }}
-    ]
-    Do not include markdown blocks like ```json ... ```, just output the raw JSON.
-    """
+    education_agent = Agent(
+        name="Education Module Generator",
+        role="Generate educational modules and interactive simulations for health workers.",
+        model=gemini,
+        instructions=[
+            f"Target Audience/User Role: {user_role}",
+            f"Topic: {query}",
+            "",
+            "Your tasks:",
+            "1. Generate an educational module for the specified role based on the topic.",
+            "2. Include 2 interactive simulation questions to test knowledge.",
+            "3. Output strictly valid JSON matching this schema, without markdown blocks like ```json:",
+            """
+            [
+              {
+                "module_id": "string",
+                "title": "string",
+                "description": "string",
+                "target_audience": "string",
+                "questions": [
+                  {
+                    "id": "string",
+                    "question_text": "string",
+                    "options": ["string"],
+                    "correct_option_index": 0,
+                    "explanation": "string"
+                  }
+                ]
+              }
+            ]
+            """
+        ],
+        markdown=False
+    )
     
     try:
-        response = model.generate_content(prompt)
-        data_text = response.text.strip()
+        response = education_agent.run("Generate module.")
+        data_text = response.content.strip()
         if data_text.startswith("```json"):
             data_text = data_text[7:]
         if data_text.endswith("```"):
@@ -48,7 +58,6 @@ def generate_education_modules(query: str, user_role: str) -> List[EducationModu
         return modules
     except Exception as e:
         print(f"Failed to generate modules: {e}")
-        # Return a fallback module
         return [
             EducationModule(
                 module_id="fallback-001",
