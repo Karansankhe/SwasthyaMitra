@@ -1,11 +1,11 @@
 import { useView } from '../view.js'
-import { Card, CardHead, Skeleton, Spinner, ErrorNote, SevPill, Empty, PageHeader } from '../components/ui.jsx'
+import { Card, CardHead, Skeleton, ErrorNote, SevPill, Empty, PageHeader } from '../components/ui.jsx'
 import { toneOf, up } from '../lib/selectors.js'
 
 // Full surveillance report from /surveillance/analyze(/stream) + the live
 // snapshot (weather, pollutants, health news).
 export default function Surveillance() {
-  const { report, weather, news, status, errors, progress, load } = useView()
+  const { report, weather, news, status, errors, load } = useView()
   const analysing = status.analysis === 'loading' || status.analysis === 'idle'
 
   const sa = report?.signal_assessment || {}
@@ -33,7 +33,7 @@ export default function Surveillance() {
         )}
       />
 
-      <div className="grid gap-5 mb-4" style={{ gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)' }}>
+      <div className="mb-4">
         <Card i={1}>
           <CardHead title="Executive summary" sub={report?.generated_at ? `Generated ${new Date(report.generated_at).toLocaleString()}` : undefined} />
           <div className="px-5 pb-5">
@@ -54,22 +54,6 @@ export default function Surveillance() {
               <ErrorNote title="Analysis unavailable" message={errors.analysis} onRetry={() => load({ force: true })} />
             ) : (
               <Empty>No summary in this report.</Empty>
-            )}
-          </div>
-        </Card>
-
-        <Card i={2}>
-          <CardHead title="Agent run log" sub="Streamed from /analyze/stream" right={analysing ? <Spinner size={14} /> : null} />
-          <div className="px-5 pb-5 max-h-[200px] overflow-auto" data-lenis-prevent>
-            {progress.length ? (
-              progress.map((p, i) => (
-                <div key={i} className="log-in flex gap-2 text-[12px] leading-relaxed text-body">
-                  <span className="text-brand">✓</span>
-                  {p}
-                </div>
-              ))
-            ) : (
-              <div className="text-[12px] text-faint">Loaded from cache — refresh on the dashboard to re-run the agents.</div>
             )}
           </div>
         </Card>
