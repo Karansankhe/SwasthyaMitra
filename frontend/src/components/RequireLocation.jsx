@@ -1,9 +1,9 @@
 import { Navigate } from 'react-router-dom'
 import { useStore } from '../store.jsx'
 
-// Blocks the dashboard until a location has been selected and analysed.
+// The dashboard needs a validated region from onboarding.
 export default function RequireLocation({ children }) {
   const { session } = useStore()
-  if (!session?.location) return <Navigate to="/onboarding" replace />
+  if (!session?.geo) return <Navigate to="/onboarding" replace />
   return children
 }
