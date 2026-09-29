@@ -31,7 +31,7 @@ The app follows `dashboard_integration_guide.md`:
 | `/` | Landing | — |
 | `/onboarding` | Region search (validated live) | `GET /surveillance/geocode` |
 | `/dashboard` | KPIs, compound-risk radar, demand forecast, alerts & shortages, recommendation detail, action timeline | `snapshot`, `inventory/status`, `alerts/trigger`, `surveillance/analyze/stream`, `distribution/plan` |
-| `/dashboard/surveillance` | Full surveillance report + agent run log + health news | (shared data) |
+| `/dashboard/surveillance` | Full surveillance report + weather, pollutants and health news | (shared data) |
 | `/dashboard/logistics` | PHC map, transfer Kanban, critical shortages | `distribution/reallocate`, `surveillance/geocode` (map pins) |
 | `/dashboard/inventory` | Stock register by district | (shared data) |
 | `/dashboard/education` | Generated MCQ simulations with a "Why?" rationale | `POST /education/generate` |
