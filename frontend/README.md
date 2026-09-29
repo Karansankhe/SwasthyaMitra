@@ -22,51 +22,55 @@ npm run build     # production build to /dist
 npm run preview   # preview the production build
 ```
 
+## Routes
+
+The app follows `dashboard_integration_guide.md`:
+
+| Route | Page | Backend calls |
+| --- | --- | --- |
+| `/` | Landing | — |
+| `/onboarding` | Region search (validated live) | `GET /surveillance/geocode` |
+| `/dashboard` | KPIs, compound-risk radar, demand forecast, alerts & shortages, recommendation detail, action timeline | `snapshot`, `inventory/status`, `alerts/trigger`, `surveillance/analyze/stream`, `distribution/plan` |
+| `/dashboard/surveillance` | Full surveillance report + agent run log + health news | (shared data) |
+| `/dashboard/logistics` | PHC map, transfer Kanban, critical shortages | `distribution/reallocate`, `surveillance/geocode` (map pins) |
+| `/dashboard/inventory` | Stock register by district | (shared data) |
+| `/dashboard/education` | Generated MCQ simulations with a "Why?" rationale | `POST /education/generate` |
+| `/dashboard/assistant` | Chat grounded in the current report and plan | `POST /chat` (needs `X-API-Key`) |
+
 ## Project structure
 
 ```
-index.html                 Vite entry (loads Google Fonts + /src/main.jsx)
-tailwind.config.js         Design tokens (coral / dark / white, fonts)
 src/
   main.jsx                 App bootstrap: Router + StoreProvider
-  App.jsx                  Route table (one route per page)
-  store.jsx                Shared approvals state (approve / dismiss)
-  data.js                  Seed data + chart & simulator helpers  ← swap for API calls
-  icons.jsx                Sidebar line icons
-  lib/api.js               Fetch client (reads VITE_API_BASE_URL)
+  App.jsx                  Route table
+  store.jsx                Region session + loading lifecycle (cached per region in localStorage)
+  view.js                  useView(): derived view-model shared by every dashboard page
+  lib/api.js               Fetch client + NDJSON stream reader (VITE_API_BASE_URL, VITE_API_KEY)
+  lib/selectors.js         Pure mappers: KPIs, risk vectors, demand series, alerts, timeline
   components/
-    Layout.jsx             Sidebar + Topbar + <Outlet/>
-    Sidebar.jsx            Left nav (NavLink active states)
-    Topbar.jsx             Facility switcher, threat level, search, profile
-    AgentRail.jsx          Live agent-activity feed with approvals
-    ui.jsx                 Shared primitives: Card, Badge, Bar, buttons
-  pages/
-    CommandCenter.jsx      /            KPIs, facility status, alerts, agent rail
-    SurgeMonitor.jsx       /alerts      Alert list + detail with recommended actions
-    Forecasting.jsx        /forecast    Patient-load charts + driver breakdown
-    Inventory.jsx          /inventory   Stock, inter-clinic redistribution, PO queue
-    Staff.jsx              /staff       Roster grid, load, staffing recommendations
-    Communications.jsx     /comms       Multilingual (Bhashini) advisory composer
-    Simulator.jsx          /simulator   What-if surge sliders + recommended plan
-    Lms.jsx                /lms         Gamified staff surge-training modules
-    Settings.jsx           /settings    Facility / integration / access settings
+    Layout.jsx             Sidebar + Topbar + <Outlet/>; starts the loading lifecycle
+    Sidebar.jsx / Topbar.jsx
+    Charts.jsx             SVG radar + area charts (no chart library)
+    Markdown.jsx           Safe Markdown renderer for chat replies
+    ui.jsx                 Card, Skeleton, Spinner, SevPill, ErrorNote, …
+  pages/                   Onboarding, Dashboard, Surveillance, Logistics, Inventory, Education, Assistant
 ```
 
-## Wiring to the backend
+## Loading lifecycle
 
-Screens read from a small set of seed exports in [`src/data.js`](src/data.js) — one or two
-sample records each, plus the chart and simulator helpers. Every list already renders an
-empty state, so screens behave correctly the moment the backend returns real (or no) data.
+1. `/onboarding` validates the region with `/geocode`, then routes to `/dashboard`.
+2. `/snapshot`, `/inventory/status` and `/alerts/trigger` run in parallel (header, KPIs, warnings).
+3. `/analyze/stream` streams agent progress over the charts. It falls back to `/analyze` if the stream breaks.
+4. The finished report fills the radar and the timeline, then `/distribution/plan` runs and fills the demand forecast, shortages and transfers.
 
-To go live, fetch through the API client in [`src/lib/api.js`](src/lib/api.js) and pass the
-results into the same component props. Set the backend URL via an env var:
+Only usable results are cached (per region), so a refresh doesn't re-run the agents, but a
+failed run is retried on the next visit. **Refresh analysis** forces a new run.
+
+## Configuration
 
 ```bash
-cp .env.example .env.local   # then set VITE_API_BASE_URL
+cp .env.example .env.local   # set VITE_API_BASE_URL and VITE_API_KEY (= backend API_KEY)
 ```
-
-Human-in-the-loop approvals (agent feed, procurement POs, staffing swaps) are tracked in
-[`src/store.jsx`](src/store.jsx); point `approve` / `dismiss` at real endpoints there.
 
 ## Design tokens
 
