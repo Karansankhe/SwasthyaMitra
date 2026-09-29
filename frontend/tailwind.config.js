@@ -4,22 +4,26 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: '#1C2220',      // primary text / dark surface
-        body: '#3F4A46',     // secondary body text
-        muted: '#5C665F',    // muted labels
-        faint: '#939B94',    // faint / meta
-        hint: '#AAB1AA',     // inactive icons
+        ink: '#141615',      // primary text
+        body: '#3D423F',     // secondary body text
+        muted: '#5E6460',    // muted labels
+        faint: '#8F9591',    // faint / meta
+        hint: '#AEB3AF',     // inactive icons
         canvas: '#FFFFFF',   // page background
         panel: '#FFFFFF',    // surfaces
-        field: '#F3F3F2',    // inputs / chips (neutral)
-        dark: '#1C2220',     // dark sidebar / footer
+        field: '#F1F2F1',    // inputs / chips (neutral)
+        dark: '#111312',     // near-black surfaces
+        // Driven by CSS variables so a subtree can re-theme (see .theme-glass in
+        // index.css / .theme-studio): teal on the landing page and inside the app.
         brand: {
-          DEFAULT: '#F2785C', // coral
-          dark: '#E15D3F',
+          DEFAULT: 'rgb(var(--brand) / <alpha-value>)',
+          dark: 'rgb(var(--brand-dark) / <alpha-value>)',
+          light: 'rgb(var(--brand-light) / <alpha-value>)',
         },
+        navy: '#15201F', // app headings / dark accents (matches the landing ink)
         danger: '#DC2626',
         warn: '#D97706',
-        ok: '#1C2220',
+        ok: '#2F7A4F',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
