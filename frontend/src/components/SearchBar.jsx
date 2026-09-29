@@ -1,21 +1,23 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { NAV } from '../data.js'
-import { useDashboard } from '../dashboard.jsx'
+import { useView } from '../view.js'
 
 export default function SearchBar() {
   const navigate = useNavigate()
-  const { alerts } = useDashboard()
+  const { warnings, shortages } = useView()
   const ref = useRef(null)
+  const inputRef = useRef(null)
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
 
   const index = useMemo(() => {
     const idx = NAV.map((n) => ({ label: n.label, sub: 'Page', type: 'Page', tag: 'P', to: n.to }))
-    alerts.forEach((a) => idx.push({ label: a.title, sub: [a.fac, a.sev].filter(Boolean).join(' · '), type: 'Alert', tag: 'A', to: '/alerts' }))
+    warnings.forEach((a) => idx.push({ label: a.title, sub: [a.source, a.severity].filter(Boolean).join(' · '), type: 'Alert', tag: 'A', to: '/dashboard/surveillance' }))
+    shortages.forEach((a) => idx.push({ label: a.title, sub: a.desc, type: 'Shortage', tag: 'S', to: '/dashboard/logistics' }))
     return idx
-  }, [alerts])
+  }, [warnings, shortages])
 
   const results = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -24,6 +26,18 @@ export default function SearchBar() {
   }, [q, index])
 
   useEffect(() => setActive(0), [q])
+
+  // Ctrl/⌘+K focuses search.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   useEffect(() => {
     const onDown = (e) => {
@@ -49,22 +63,23 @@ export default function SearchBar() {
   }
 
   return (
-    <div ref={ref} className="relative flex-1 max-w-[420px]">
-      <div className={`flex items-center gap-2.5 h-[34px] px-3 border rounded-lg bg-white transition-colors ${open ? 'border-brand ring-2 ring-brand/15' : 'border-black/[0.09]'}`}>
+    <div ref={ref} className="relative flex-1 max-w-[380px] ml-auto rise" style={{ '--i': 1 }}>
+      <div className={`glass-card flex items-center gap-2.5 h-10 px-4 rounded-full transition-shadow ${open ? 'ring-4 ring-brand/15' : ''}`}>
         <span className="text-[13px] text-faint">⌕</span>
         <input
+          ref={inputRef}
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true) }}
           onFocus={() => q && setOpen(true)}
           onKeyDown={onKey}
-          placeholder="Search pages and alerts…"
+          placeholder="Search pages, alerts, shortages…"
           className="flex-1 bg-transparent border-0 outline-none text-ink text-[13px] placeholder:text-faint"
         />
-        <span className="text-[10px] text-faint font-mono border border-black/[0.12] rounded px-[5px] py-px">⌘K</span>
+        <span className="hidden xl:inline text-[10px] text-faint font-mono bg-white/70 rounded-md px-1.5 py-0.5 whitespace-nowrap">Ctrl K</span>
       </div>
 
       {open && q.trim() && (
-        <div className="absolute left-0 right-0 top-[calc(100%+8px)] bg-white border border-black/[0.08] rounded-xl shadow-[0_12px_32px_rgba(28,34,32,0.12)] p-1.5 z-30 max-h-[360px] overflow-auto">
+        <div className="glass-strong absolute left-0 right-0 top-[calc(100%+8px)] rounded-2xl p-1.5 z-30 max-h-[360px] overflow-auto rise">
           {results.length === 0 ? (
             <div className="px-3 py-6 text-center text-[13px] text-faint">No matches for “{q}”</div>
           ) : (
