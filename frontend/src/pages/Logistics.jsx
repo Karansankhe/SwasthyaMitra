@@ -33,13 +33,17 @@ export default function Logistics() {
             sub="Stock status by facility · transfer routes"
             right={
               <div className="flex items-center gap-3 text-[11px] text-muted">
-                <Legend c="#EF4444" l="Critical" />
-                <Legend c="#F59E0B" l="Low" />
-                <Legend c="#34A56A" l="Healthy" />
+                <Legend c="#EF4444" l="Critical · receiving" />
+                <Legend c="#F59E0B" l="Low · shortage" />
+                <Legend c="#34A56A" l="Healthy · sending" />
+                <span className="flex items-center gap-1.5">
+                  <span className="w-4 border-t-2 border-dashed" style={{ borderColor: '#14968C' }} />
+                  Transfer
+                </span>
               </div>
             }
           />
-          <PhcMap center={session?.geo} rows={rows} transfers={transfers} inventoryState={status.inventory} />
+          <PhcMap center={session?.geo} rows={rows} transfers={transfers} shortages={shortages} inventoryState={status.inventory} />
         </Card>
 
         <Card i={1} className="flex flex-col overflow-hidden">
@@ -253,13 +257,30 @@ const kmBetween = (a, b) => {
   return Math.sqrt(x * x + y * y) * 6371
 }
 
-// Facility names are bare ("Aundh"), so qualify them with the region's state
-// and reject matches far outside the operational region.
+// Plan locations are often descriptive ("Dadar/Andheri District Hospitals",
+// "Andheri Emergency Dept"). Strip facility words and split on "/", "and", ","
+// to get geocodable place names.
+const GENERIC =
+  /\b(district|districts|hospitals?|phcs?|chcs?|emergency|dept|department|eds?|transit|hubs?|central|medical|stores?|peripheral|urban|rural|high|low|density|traffic|market|facilit(?:y|ies)|centres?|centers?|primary|health|wards?|areas?|zones?|block|region|the|of|all|nearby)\b/gi
+
+export function placeCandidates(name) {
+  const raw = String(name || '').replace(/\(.*?\)/g, ' ')
+  const parts = raw
+    .split(/\/|,|&|\band\b/i)
+    .map((p) => p.replace(GENERIC, ' ').replace(/[^A-Za-z .'-]/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter((p) => p.length >= 3)
+  return [...new Set([raw.trim(), ...parts])].filter(Boolean)
+}
+
+// Qualify each candidate with the region's state and keep only matches inside
+// the operational region (so "Andheri" can't land in another state).
 async function geocodeName(name, center) {
   const ctx = [center.state, center.country].filter(Boolean).join(', ')
-  for (const query of ctx ? [`${name}, ${ctx}`, name] : [name]) {
-    const g = await geocodeOnce(query)
-    if (g && kmBetween(center, g) < 150) return g
+  for (const cand of placeCandidates(name)) {
+    for (const query of ctx ? [`${cand}, ${ctx}`, cand] : [cand]) {
+      const g = await geocodeOnce(query)
+      if (g && kmBetween(center, g) < 150) return g
+    }
   }
   return null
 }
@@ -272,11 +293,19 @@ const STATUS_COLOR = (s) => {
   return v >= 75 ? '#EF4444' : v >= 45 ? '#F59E0B' : '#34A56A'
 }
 
-function PhcMap({ center, rows, transfers, inventoryState }) {
+const ROUTE = '#14968C'
+const ROLE = {
+  to: { color: '#EF4444', label: 'Receiving transfer' },
+  from: { color: '#34A56A', label: 'Sending stock' },
+  shortage: { color: '#F59E0B', label: 'Predicted shortage' },
+}
+
+function PhcMap({ center, rows, transfers, shortages = [], inventoryState }) {
   const el = useRef(null)
   const map = useRef(null)
   const layer = useRef(null)
   const [resolving, setResolving] = useState(false)
+  const [missing, setMissing] = useState({ names: [], outside: 0, plotted: 0 })
 
   useEffect(() => {
     if (!el.current || map.current || !center) return
@@ -287,28 +316,43 @@ function PhcMap({ center, rows, transfers, inventoryState }) {
       className: 'map-tiles-soft',
     }).addTo(map.current)
     layer.current = L.layerGroup().addTo(map.current)
+    // Re-measure when the container resizes (e.g. sidebar open/close).
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => map.current?.invalidateSize()) : null
+    ro?.observe(el.current)
     return () => {
+      ro?.disconnect()
       map.current?.remove()
       map.current = null
     }
   }, [center])
 
-  // Plot facilities (inventory districts) and transfer routes.
+  // Plot inventory facilities, transfer endpoints and shortage areas, with
+  // transfer routes between endpoints that resolve inside the region.
   useEffect(() => {
     if (!map.current || !center) return
     let cancelled = false
-    const byPlace = new Map()
+    const places = new Map() // name → { name, items, roles:Set, notes:[] }
+    const add = (name, role, note) => {
+      if (!name || name === '—') return
+      const p = places.get(name) || { name, items: [], roles: new Set(), notes: [] }
+      if (role) p.roles.add(role)
+      if (note) p.notes.push(note)
+      places.set(name, p)
+    }
     rows.forEach((r) => {
-      const cur = byPlace.get(r.district) || { name: r.district, items: [] }
-      cur.items.push(r)
-      byPlace.set(r.district, cur)
+      add(r.district)
+      places.get(r.district).items.push(r)
     })
-    transfers.forEach((t) => [t.from, t.to].forEach((n) => n && n !== '—' && !byPlace.has(n) && byPlace.set(n, { name: n, items: [] })))
-    const names = [...byPlace.keys()].slice(0, 16)
+    transfers.forEach((t) => {
+      add(t.from, 'from', `Sends ${t.resource} (${t.quantity})`)
+      add(t.to, 'to', `Receives ${t.resource} (${t.quantity}) · ${t.urgency}`)
+    })
+    shortages.forEach((s) => add(s.area, 'shortage', `${s.item || 'Shortage'}${s.desc ? ` · ${s.desc}` : ''}`))
+    const names = [...places.keys()].slice(0, 20)
 
     setResolving(names.length > 0)
     Promise.all(names.map((n) => geocodeName(n, center).then((g) => [n, g]))).then((pairs) => {
-      if (cancelled) return
+      if (cancelled || !map.current) return
       setResolving(false)
       const pos = new Map(pairs.filter(([, g]) => g))
       const g = layer.current
@@ -322,28 +366,42 @@ function PhcMap({ center, rows, transfers, inventoryState }) {
         const a = pos.get(t.from)
         const b = pos.get(t.to)
         if (!a || !b) return
-        L.polyline([[a.lat, a.lon], [b.lat, b.lon]], { color: '#2F7A4F', weight: 2.5, dashArray: '6 6', opacity: 0.8 })
+        L.polyline([[a.lat, a.lon], [b.lat, b.lon]], { color: ROUTE, weight: 3, dashArray: '6 6', opacity: 0.85 })
           .bindTooltip(esc(`${t.resource} · ${t.quantity}`), { sticky: true })
           .addTo(g)
       })
 
       const bounds = [[center.lat, center.lon]]
       pos.forEach((p, name) => {
-        const place = byPlace.get(name)
-        const worst = place.items.reduce((m, r) => (stockScore(r.status) > stockScore(m) ? r.status : m), place.items.length ? 'Green' : '')
-        const color = place.items.length ? STATUS_COLOR(worst) : '#2F7A4F'
-        const lines = place.items.map((r) => `${esc(r.item)}: <b>${esc(r.status)}</b>${r.stock != null ? ` (${r.stock} left)` : ''}`)
-        L.circleMarker([p.lat, p.lon], { radius: place.items.length ? 10 : 7, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.95 })
-          .bindPopup(`<div style="font-size:12px"><b>${esc(name)}</b><br/>${lines.join('<br/>') || 'Transfer endpoint'}</div>`)
+        const place = places.get(name)
+        const worst = place.items.reduce((m, r) => (stockScore(r.status) > stockScore(m) ? r.status : m), '')
+        const color = place.items.length
+          ? STATUS_COLOR(worst)
+          : ROLE[['to', 'shortage', 'from'].find((r) => place.roles.has(r))]?.color || ROUTE
+        const lines = [
+          ...place.items.map((r) => `${esc(r.item)}: <b>${esc(r.status)}</b>${r.stock != null ? ` (${r.stock} left)` : ''}`),
+          ...place.notes.map(esc),
+        ]
+        L.circleMarker([p.lat, p.lon], { radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.95 })
+          .bindTooltip(esc(name), { direction: 'top' })
+          .bindPopup(`<div style="font-size:12px;max-width:220px"><b>${esc(name)}</b><br/>${lines.join('<br/>')}</div>`)
           .addTo(g)
         bounds.push([p.lat, p.lon])
       })
-      if (bounds.length > 1) map.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 })
+      if (bounds.length > 1) map.current.fitBounds(bounds, { padding: [48, 48], maxZoom: 12 })
+
+      const unresolved = names.filter((n) => !pos.has(n))
+      setMissing({
+        // state-level inventory rows (e.g. "Uttar Pradesh") sit outside a city region
+        outside: unresolved.filter((n) => places.get(n).items.length).length,
+        names: unresolved.filter((n) => !places.get(n).items.length),
+        plotted: pos.size,
+      })
     })
     return () => {
       cancelled = true
     }
-  }, [center, rows, transfers])
+  }, [center, rows, transfers, shortages])
 
   return (
     <div className="relative flex-1 min-h-[440px] mx-4 mb-4 rounded-2xl overflow-hidden border border-white/80">
@@ -353,9 +411,20 @@ function PhcMap({ center, rows, transfers, inventoryState }) {
           <Spinner size={11} /> {inventoryState === 'loading' ? 'Loading inventory status…' : 'Locating facilities…'}
         </div>
       )}
-      {inventoryState === 'error' && (
-        <div className="absolute bottom-3 left-3 z-[500] bg-white/95 rounded-lg px-3 py-1.5 text-[11px] text-muted shadow">
-          Inventory status unavailable — showing transfer routes only
+      {/* What couldn't be placed, so an empty-looking map is explained */}
+      {!resolving && (missing.names.length > 0 || missing.outside > 0 || inventoryState === 'error') && (
+        <div className="absolute bottom-3 left-3 z-[500] max-w-[70%] bg-white/95 rounded-xl px-3 py-2 text-[11px] text-muted shadow leading-relaxed">
+          <div className="font-semibold text-navy mb-0.5">
+            {missing.plotted ? `${missing.plotted} location${missing.plotted === 1 ? '' : 's'} mapped` : 'No facility locations could be mapped'}
+          </div>
+          {missing.names.length > 0 && (
+            <div>
+              Not on map: {missing.names.slice(0, 4).join(' · ')}
+              {missing.names.length > 4 ? ` +${missing.names.length - 4} more` : ''}
+            </div>
+          )}
+          {missing.outside > 0 && <div>{missing.outside} inventory record{missing.outside === 1 ? ' is' : 's are'} state-level, outside this region</div>}
+          {inventoryState === 'error' && <div>Inventory status unavailable</div>}
         </div>
       )}
     </div>
